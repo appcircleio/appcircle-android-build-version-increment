@@ -41,7 +41,7 @@ def get_gradle_path
   repository_path = env_has_key('AC_REPOSITORY_DIR')
   project_path = get_env('AC_PROJECT_PATH') || '.'
   android_module = env_has_key('AC_MODULE')
-  project_path = File.expand_path(repository_path, project_path)
+  project_path = File.expand_path(project_path, repository_path)
   build_gradle_path = File.join(project_path, android_module, 'build.gradle')
   build_gradle_path.to_s
 end
