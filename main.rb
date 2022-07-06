@@ -183,7 +183,10 @@ omit_zero = get_env('AC_OMIT_ZERO_PATCH_VERSION') == 'true'
 version_strategy = get_env('AC_VERSION_STRATEGY') || 'keep' # "keep"  major,minor, patch
 
 puts "Platform: #{platform.blue}"
-
+if build_number_source.nil? && version_number_source.nil?
+  puts "No Version Code and Version Name source specified. Exiting."
+  exit 0
+end
 case platform
 when 'Flutter'
   pubspec_location = get_pubspec_location
