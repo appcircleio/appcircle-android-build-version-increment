@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 require 'yaml'
 require 'colored'
 require 'pathname'
@@ -52,8 +50,6 @@ def get_pubspec_location
   repository_path = env_has_key('AC_REPOSITORY_DIR')
   project_path = get_env('AC_PROJECT_PATH') || './android'
   project_path = File.join(repository_path, project_path)
-  # we have the path of android project
-  puts project_path
   pubspec_location = File.expand_path('../pubspec.yaml', project_path)
   raise 'No pubspec.yaml found!' unless File.exist?(pubspec_location)
 
@@ -152,6 +148,9 @@ def get_gradle_value(file_path, key, flavor)
 end
 
 def calculate_version_number(current_version, strategy, omit_zero, offset)
+  if offset.to_i == 0
+    return current_version
+  end
   version_array = current_version.split('.').map(&:to_i)
   case strategy
   when 'patch'
@@ -212,7 +211,7 @@ when 'Flutter'
   new_version_name = calculate_version_number(source_version_name, version_strategy, omit_zero, version_offset)
   puts "New Version Name: #{new_version_name.blue}"
   new_full_version = "#{new_version_name}+#{new_version_code}"
-  puts "New Full Version: #{new_full_version.blue}"
+  puts "New Flutter Version: #{new_full_version.blue}"
   set_new_env_values(new_version_code, new_version_name)
   set_flutter_version(pubspec_location, new_full_version)
   exit 0
