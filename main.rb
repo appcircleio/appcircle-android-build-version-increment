@@ -43,6 +43,7 @@ def get_gradle_path
   android_module = env_has_key('AC_MODULE')
   project_path = File.expand_path(project_path, repository_path)
   build_gradle_path = File.join(project_path, android_module, 'build.gradle')
+  raise 'No build.gradle found! The build.gradle file is required to set new versions.'.red unless File.exist?(build_gradle_path)
   build_gradle_path.to_s
 end
 
@@ -51,8 +52,7 @@ def get_pubspec_location
   project_path = get_env('AC_PROJECT_PATH') || './android'
   project_path = File.join(repository_path, project_path)
   pubspec_location = File.expand_path('../pubspec.yaml', project_path)
-  raise 'No pubspec.yaml found!' unless File.exist?(pubspec_location)
-
+  raise 'No pubspec.yaml found! The pubspec.yaml file is required to set new versions.'.red unless File.exist?(pubspec_location)
   pubspec_location.to_s
 end
 
@@ -144,6 +144,10 @@ def get_gradle_value(file_path, key, flavor)
     end
     file.close
   end
+
+  if value == '' || value.nil?
+    raise "#{key} not found in gradle file (#{file_path}).".red
+  end
   value
 end
 
@@ -151,27 +155,63 @@ def calculate_version_number(current_version, strategy, omit_zero, offset)
   if offset.to_i == 0
     return current_version
   end
-  version_array = current_version.split('.').map(&:to_i)
+
+  version_parts = current_version.split('.')
+  valid_version = version_parts.all? { |part| is_integer?(part) }
+  unless valid_version
+    puts 'To increment the versionName, all parts of the versionName must be integers.'.red
+    exit 0
+  end
+
+  version_array = version_parts.map(&:to_i)
   case strategy
   when 'patch'
     version_array[2] = (version_array[2] || 0) + offset.to_i
   when 'minor'
     version_array[1] = (version_array[1] || 0) + offset.to_i
-    version_array[2] = version_array[2] = 0
+    version_array[2] = 0
   when 'major'
     version_array[0] = (version_array[0] || 0) + offset.to_i
-    version_array[1] = version_array[1] = 0
-    version_array[1] = version_array[2] = 0
+    version_array[1] = 0
+    version_array[2] = 0
   end
 
   version_array.pop if omit_zero && (version_array[2]).zero?
-  version_array.join('.')
+  new_version_number = version_array.join('.')
+  puts "New Version Name: #{new_version_number.blue}"
+  new_version_number
+end
+
+def check_version_code(new_version_code)
+  if !is_integer?(new_version_code)
+    puts 'versionCode must be integer.'.red
+    exit 0
+  end
+  if new_version_code.to_i > 2_100_000_000
+    puts 'versionCode cannot be bigger than 2100000000.'.red
+    exit 0
+  end
+  if new_version_code.to_i < 1
+    puts 'versionCode cannot be smaller than 1.'.red
+    exit 0
+  end
 end
 
 def calculate_build_number(current_build_number, offset)
   build_array = current_build_number.split('.').map(&:to_i)
   build_array[-1] = build_array[-1] + offset.to_i
-  build_array.join('.')
+  new_version_code = build_array.join('.')
+
+  puts "New Version Code: #{new_version_code.blue}"
+  check_version_code(new_version_code)
+  new_version_code
+end
+
+def get_flutter_gradle_full_version(pubspec_location)
+  full_version = get_flutter_version(pubspec_location)
+  puts "Flutter Version: #{full_version.blue}"
+  raise 'Wrong version! Add a version to your pubspec.yaml (example: 1.0.0+1).'.red unless full_version.include?('+')
+  splitted_version = full_version.split('+')
 end
 
 platform = get_env('AC_PLATFORM_TYPE')
@@ -180,74 +220,53 @@ build_offset = get_env('AC_BUILD_OFFSET') || 0
 version_number_source = get_env('AC_VERSION_NUMBER_SOURCE')
 version_offset = get_env('AC_VERSION_OFFSET') || 0
 omit_zero = get_env('AC_OMIT_ZERO_PATCH_VERSION') == 'true'
-version_strategy = get_env('AC_VERSION_STRATEGY') || 'keep' # "keep"  major,minor, patch
+version_strategy = get_env('AC_VERSION_STRATEGY') || 'keep'
 
-puts "Platform: #{platform.blue}"
 if build_number_source.nil? && version_number_source.nil?
   puts "No Version Code and Version Name source specified. Exiting."
   exit 0
 end
+
+source_version_code = env_has_key('AC_ANDROID_BUILD_NUMBER') if build_number_source == 'env'
+source_version_name = env_has_key('AC_ANDROID_VERSION_NUMBER') if version_number_source == 'env'
+
+puts "Platform: #{platform.blue}"
 case platform
 when 'Flutter'
   pubspec_location = get_pubspec_location
-  full_version = get_flutter_version(pubspec_location)
-  puts "Flutter Version: #{full_version.blue}"
-  raise 'Wrong version! Add a version to your pubspec.yaml (example: 1.0.0+1)' unless full_version.include?('+')
 
-  splitted_version = full_version.split('+')
-  version_name = splitted_version[0]
-  version_code = splitted_version[1]
-  puts "Current Version Name: #{version_name.blue}"
-  puts "Current Version Code: #{version_code.blue}"
-  if !is_integer?(version_code) || version_code.to_i > 2_100_000_000
-    puts 'versionCode is not integer or bigger than 2100000000. This is not supported.'.red
-    exit 0
+  if build_number_source == 'gradle'
+    splitted_version = get_flutter_gradle_full_version(pubspec_location)
+    source_version_code = splitted_version[1]
   end
-  source_version_code = version_code
-  source_version_name = version_name
-  source_version_code = env_has_key('AC_ANDROID_BUILD_NUMBER') if build_number_source == 'env'
-  puts "Source Version Code: #{source_version_code.blue}"
-  source_version_name = env_has_key('AC_ANDROID_VERSION_NUMBER') if version_number_source == 'env'
-  puts "Source Version Name: #{source_version_name.blue}"
+  puts "Current Version Code: #{source_version_code.blue}"
+
+  if version_number_source == 'gradle'
+    splitted_version ||= get_flutter_gradle_full_version(pubspec_location)
+    source_version_name = splitted_version[0]
+  end
+  puts "Current Version Name: #{source_version_name.blue}"
+
   new_version_code = calculate_build_number(source_version_code, build_offset)
-  puts "New Version Code: #{new_version_code.blue}"
   new_version_name = calculate_version_number(source_version_name, version_strategy, omit_zero, version_offset)
-  puts "New Version Name: #{new_version_name.blue}"
   new_full_version = "#{new_version_name}+#{new_version_code}"
   puts "New Flutter Version: #{new_full_version.blue}"
   set_new_env_values(new_version_code, new_version_name)
   set_flutter_version(pubspec_location, new_full_version)
-  exit 0
 when 'JavaKotlin', 'ReactNative'
   gradlew_path = get_gradle_path
   flavor = get_env('AC_VERSION_FLAVOR')
-  version_code = get_gradle_value(gradlew_path, 'versionCode', flavor)
-  version_name = get_gradle_value(gradlew_path, 'versionName', flavor)
-  if version_code.empty? || version_name.empty?
-    puts 'No versionCode or versionName found. This gradle file is not supported.'.red
-    exit 0
-  end
 
-  if !is_integer?(version_code) || version_code.to_i > 2_100_000_000
-    puts 'versionCode is not integer or bigger than 2100000000. This is not supported.'.red
-    exit 0
-  end
-  puts "Current Version Code: #{version_code.blue}"
-  puts "Current Version Name: #{version_name.blue}"
-  source_version_code = version_code
-  source_version_name = version_name
-  source_version_code = env_has_key('AC_ANDROID_BUILD_NUMBER') if build_number_source == 'env'
-  puts "Source Version Code: #{source_version_code.blue}"
-  source_version_name = env_has_key('AC_ANDROID_VERSION_NUMBER') if version_number_source == 'env'
-  puts "Source Version Name: #{source_version_name.blue}"
+  source_version_code = get_gradle_value(gradlew_path, 'versionCode', flavor) if build_number_source == 'gradle'
+  puts "Current Version Code: #{source_version_code.blue}"
+  source_version_name = get_gradle_value(gradlew_path, 'versionName', flavor) if version_number_source == 'gradle'
+  puts "Current Version Name: #{source_version_name.blue}"
+
   new_version_code = calculate_build_number(source_version_code, build_offset)
-  puts "New Version Code: #{new_version_code.blue}"
   new_version_name = calculate_version_number(source_version_name, version_strategy, omit_zero, version_offset)
-  puts "New Version Name: #{new_version_name.blue}"
   set_gradle_value(gradlew_path, 'versionCode', new_version_code, flavor)
   set_gradle_value(gradlew_path, 'versionName', new_version_name, flavor)
   set_new_env_values(new_version_code, new_version_name)
-  exit 0
 when 'Smartface'
   repository_path = env_has_key('AC_REPOSITORY_DIR')
   android_xml_path = File.join(repository_path, 'config', 'Android', 'AndroidManifest.xml')
