@@ -22,11 +22,16 @@ def get_env(key)
   end
 end
 
-def set_new_env_values(new_version_code, new_version_name)
+def set_new_env_version_code(new_version_code)
   open(ENV['AC_ENV_FILE_PATH'], 'a') { |f|
     f.puts "AC_ANDROID_NEW_VERSION_CODE=#{new_version_code}"
+  }
+end
+
+def set_new_env_version_name(new_version_name)
+  open(ENV['AC_ENV_FILE_PATH'], 'a') { |f|
     f.puts "AC_ANDROID_NEW_VERSION_NAME=#{new_version_name}"
-}
+  }
 end
 
 def load_xml(file_path)
@@ -258,15 +263,20 @@ when 'JavaKotlin', 'ReactNative'
   flavor = get_env('AC_VERSION_FLAVOR')
 
   source_version_code = get_gradle_value(gradlew_path, 'versionCode', flavor) if build_number_source == 'gradle'
-  puts "Current Version Code: #{source_version_code.blue}"
+  if source_version_code
+    puts "Current Version Code: #{source_version_code.blue}"
+    new_version_code = calculate_build_number(source_version_code, build_offset)
+    set_gradle_value(gradlew_path, 'versionCode', new_version_code, flavor)
+    set_new_env_version_code(new_version_code)
+  end
+  
   source_version_name = get_gradle_value(gradlew_path, 'versionName', flavor) if version_number_source == 'gradle'
-  puts "Current Version Name: #{source_version_name.blue}"
-
-  new_version_code = calculate_build_number(source_version_code, build_offset)
-  new_version_name = calculate_version_number(source_version_name, version_strategy, omit_zero, version_offset)
-  set_gradle_value(gradlew_path, 'versionCode', new_version_code, flavor)
-  set_gradle_value(gradlew_path, 'versionName', new_version_name, flavor)
-  set_new_env_values(new_version_code, new_version_name)
+  if source_version_name
+    puts "Current Version Name: #{source_version_name.blue}"
+    new_version_name = calculate_version_number(source_version_name, version_strategy, omit_zero, version_offset)
+    set_gradle_value(gradlew_path, 'versionName', new_version_name, flavor)
+    set_new_env_version_name(new_version_name)
+  end
 when 'Smartface'
   repository_path = env_has_key('AC_REPOSITORY_DIR')
   android_xml_path = File.join(repository_path, 'config', 'Android', 'AndroidManifest.xml')
