@@ -29,12 +29,28 @@ def set_new_env_values(new_version_code, new_version_name)
 }
 end
 
+def set_new_env_version_code(new_version_code)
+  open(ENV['AC_ENV_FILE_PATH'], 'a') { |f|
+    f.puts "AC_ANDROID_NEW_VERSION_CODE=#{new_version_code}"
+  }
+end
+
+def set_new_env_version_name(new_version_name)
+  open(ENV['AC_ENV_FILE_PATH'], 'a') { |f|
+    f.puts "AC_ANDROID_NEW_VERSION_NAME=#{new_version_name}"
+  }
+end
+
 def load_xml(file_path)
   REXML::Document.new(File.open(file_path))
 end
 
 def is_integer?(str)
   /(\D+)/.match(str).nil?
+end
+
+def is_integer_include_negative?(str)
+  /\A-?\d+\z/.match?(str)
 end
 
 def get_gradle_path
@@ -145,7 +161,8 @@ def get_gradle_value(file_path, key, flavor)
   end
 
   if value == '' || value.nil?
-    raise "#{key} not found in gradle file (#{file_path}).".red
+    puts "#{key} not found in gradle file (#{file_path}).".red
+    exit 0
   end
   value
 end
@@ -174,7 +191,7 @@ end
 def check_version_code(new_version_code)
   puts "New Version Code: #{new_version_code.blue}"
 
-  if !is_integer?(new_version_code)
+  if !is_integer_include_negative?(new_version_code)
     puts 'versionCode must be integer.'.red
     exit 0
   end
@@ -189,10 +206,8 @@ def check_version_code(new_version_code)
 end
 
 def check_version_name(new_version_name)
-  puts "New Version Name: #{new_version_name.blue}"
-
   version_parts = new_version_name.split('.')
-  valid_version = version_parts.all? { |part| is_integer?(part) }
+  valid_version = version_parts.all? { |part| is_integer_include_negative?("#{part}") }
   unless valid_version
     puts 'To increment the versionName, all parts of the versionName must be integers.'.red
     exit 0
@@ -259,19 +274,25 @@ when 'JavaKotlin', 'ReactNative'
   source_version_code = get_gradle_value(gradlew_path, 'versionCode', flavor) if build_number_source == 'gradle'
   if source_version_code
     puts "Current Version Code: #{source_version_code.blue}"
+    if !is_integer_include_negative?(source_version_code)
+      puts 'versionCode must be integer.'.red
+      exit 0
+    end
     new_version_code = calculate_build_number(source_version_code, build_offset)
     check_version_code(new_version_code)
     set_gradle_value(gradlew_path, 'versionCode', new_version_code, flavor)
-    f.puts "AC_ANDROID_NEW_VERSION_CODE=#{new_version_code}"
+    set_new_env_version_code(new_version_code)
   end
   
   source_version_name = get_gradle_value(gradlew_path, 'versionName', flavor) if version_number_source == 'gradle'
   if source_version_name
     puts "Current Version Name: #{source_version_name.blue}"
+    check_version_name(source_version_name)
     new_version_name = calculate_version_number(source_version_name, version_strategy, omit_zero, version_offset)
+    puts "New Version Name: #{new_version_name.blue}"
     check_version_name(new_version_name)
     set_gradle_value(gradlew_path, 'versionName', new_version_name, flavor)
-    f.puts "AC_ANDROID_NEW_VERSION_NAME=#{new_version_name}"
+    set_new_env_version_name(new_version_name)
   end
 when 'Smartface'
   repository_path = env_has_key('AC_REPOSITORY_DIR')
