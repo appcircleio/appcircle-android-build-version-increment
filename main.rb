@@ -88,11 +88,10 @@ rescue StandardError
   raise 'Writing the pubspec failed!'
 end
 
-def set_gradle_value(file_path, key, value, flavor)
-  regex = Regexp.new(/(?<key>#{key}\s+)(?<left>['"]?)(?<value>[a-zA-Z0-9\-._]*)(?<right>['"]?)(?<comment>.*)/)
+def set_gradle_value(file_path, key, new_value, flavor)
+  regex = Regexp.new(/(?<key>#{key}\s*(=?)\s*)(?<left>['"]?)(?<value>[a-zA-Z0-9\-._+]*)(?<right>['"]?)(?<comment>.*)/)
   flavor_specified = !(flavor.nil? or flavor.empty?)
   regex_flavor = Regexp.new(/[ \t]#{flavor}[ \t]/)
-  found = false
   product_flavors_section = false
   flavor_found = false
   temp_file = Tempfile.new('versioning')
@@ -114,12 +113,11 @@ def set_gradle_value(file_path, key, value, flavor)
         flavor_found = true
       end
 
-      unless line.match(regex) && !found
+      unless line.match(regex)
         temp_file.puts line
         next
       end
-      line = line.gsub regex, "\\k<key>\\k<left>#{value}\\k<right>\\k<comment>"
-      found = true
+      line = line.gsub regex, "\\k<key>\\k<left>#{new_value}\\k<right>"
       temp_file.puts line
     end
     file.close
@@ -161,8 +159,7 @@ def get_gradle_value(file_path, key, flavor)
   end
 
   if value == '' || value.nil?
-    puts "#{key} not found in gradle file (#{file_path}).".red
-    exit 0
+    raise "#{key} not found in gradle file (#{file_path}).".red
   end
   value
 end
