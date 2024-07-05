@@ -159,7 +159,8 @@ def get_gradle_value(file_path, key, flavor)
   end
 
   if value == '' || value.nil?
-    raise "#{key} not found in gradle file (#{file_path}).".red
+    puts "#{key} not found in gradle file (#{file_path}).".red
+    exit 1
   end
   value
 end
