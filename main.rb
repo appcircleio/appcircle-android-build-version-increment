@@ -15,6 +15,11 @@ def env_has_key(key)
   end
 end
 
+def abort_with1(message)
+  puts "@@[error] #{message}"
+  exit 1
+end
+
 def get_env(key)
   value = ENV[key]
   if !value.nil? && value != ''
@@ -159,8 +164,8 @@ def get_gradle_value(file_path, key, flavor)
   end
 
   if value == '' || value.nil?
-    puts "#{key} not found in gradle file (#{file_path}).".red
-    exit 1
+    error_msg = "#{key} not found in gradle file (#{file_path})."
+    abort_with1(error_msg)
   end
   value
 end
@@ -186,20 +191,27 @@ def calculate_version_number(current_version, strategy, omit_zero, offset)
   version_array.join('.')
 end
 
+def is_version_code_int(version_code)
+  if !is_integer_include_negative?(version_code)
+    error_msg = "versionCode must be integer."
+    abort_with1(error_msg)
+  end
+end
+
 def check_version_code(new_version_code)
   puts "New Version Code: #{new_version_code.blue}"
 
   if !is_integer_include_negative?(new_version_code)
-    puts 'versionCode must be integer.'.red
-    exit 0
+    error_msg = "versionCode must be integer."
+    abort_with1(error_msg)
   end
   if new_version_code.to_i > 2_100_000_000
-    puts 'versionCode cannot be bigger than 2100000000.'.red
-    exit 0
+    error_msg = "versionCode cannot be bigger than 2100000000."
+    abort_with1(error_msg)
   end
   if new_version_code.to_i < 1
-    puts 'versionCode cannot be smaller than 1.'.red
-    exit 0
+    error_msg = "versionCode cannot be smaller than 1."
+    abort_with1(error_msg)
   end
 end
 
@@ -207,8 +219,8 @@ def check_version_name(new_version_name)
   version_parts = new_version_name.split('.')
   valid_version = version_parts.all? { |part| is_integer_include_negative?("#{part}") }
   unless valid_version
-    puts 'To increment the versionName, all parts of the versionName must be integers.'.red
-    exit 0
+    error_msg = "To increment the versionName, all parts of the versionName must be integers."
+    abort_with1(error_msg)
   end
 end
 
@@ -272,10 +284,7 @@ when 'JavaKotlin', 'ReactNative'
   source_version_code = get_gradle_value(gradlew_path, 'versionCode', flavor) if build_number_source == 'gradle'
   if source_version_code
     puts "Current Version Code: #{source_version_code.blue}"
-    if !is_integer_include_negative?(source_version_code)
-      puts 'versionCode must be integer.'.red
-      exit 0
-    end
+    is_version_code_int(source_version_code)
     new_version_code = calculate_build_number(source_version_code, build_offset)
     check_version_code(new_version_code)
     set_gradle_value(gradlew_path, 'versionCode', new_version_code, flavor)
