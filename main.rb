@@ -94,7 +94,7 @@ rescue StandardError
 end
 
 def set_gradle_value(file_path, key, new_value, flavor)
-  regex = Regexp.new(/(?<key>#{key}\s*(=?)\s*)(?<left>['"]?)(?<value>[a-zA-Z0-9\-._+]*)(?<right>['"]?)(?<comment>.*)/)
+  regex = Regexp.new(/^(?<whitespace>\s*)(?<key>\b#{key}\b\s*(=|:)?\s*)(?<left>['"]?)(?<value>[a-zA-Z0-9\-._+]*)(?<right>['"]?)(?<comment>.*)/)
   flavor_specified = !(flavor.nil? or flavor.empty?)
   regex_flavor = Regexp.new(/[ \t]#{flavor}[ \t]/)
   product_flavors_section = false
@@ -122,7 +122,7 @@ def set_gradle_value(file_path, key, new_value, flavor)
         temp_file.puts line
         next
       end
-      line = line.gsub regex, "\\k<key>\\k<left>#{new_value}\\k<right>"
+      line = line.gsub regex, "\\k<whitespace>\\k<key>\\k<left>#{new_value}\\k<right>"
       temp_file.puts line
     end
     file.close
@@ -135,7 +135,7 @@ end
 
 def get_gradle_value(file_path, key, flavor)
   flavor_specified = !(flavor.nil? or flavor.empty?)
-  regex = Regexp.new(/(?<key>#{key}\s+)(?<left>['"]?)(?<value>[a-zA-Z0-9._]*)(?<right>['"]?)(?<comment>.*)/)
+  regex = Regexp.new(/^\s*(?<key>\b#{key}\b\s*(=|:)?\s*)(?<left>['"]?)(?<value>[a-zA-Z0-9\-._+]*)(?<right>['"]?)(?<comment>.*)/)
   regex_flavor = Regexp.new(/[ \t]#{flavor}[ \t]/)
   value = ''
   found = false
