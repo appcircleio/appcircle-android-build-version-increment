@@ -279,6 +279,7 @@ when 'Flutter'
   exit 0
 when 'JavaKotlin', 'ReactNative'
   gradlew_path = get_gradle_path
+  puts "Gradle Path: #{gradlew_path.blue}"
   flavor = get_env('AC_VERSION_FLAVOR')
 
   source_version_code = env_has_key('AC_ANDROID_BUILD_NUMBER') if build_number_source == 'env'
