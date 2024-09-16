@@ -63,8 +63,11 @@ def get_gradle_path
   project_path = get_env('AC_PROJECT_PATH') || '.'
   android_module = env_has_key('AC_MODULE')
   project_path = File.expand_path(project_path, repository_path)
-  build_gradle_path = File.join(project_path, android_module, 'build.gradle')
-  build_gradle_path.to_s
+  gradle_dir = File.join(project_path, android_module)
+  build_gradle_kts_path = File.join(gradle_dir, 'build.gradle.kts')
+  build_gradle_path = File.join(gradle_dir, 'build.gradle')
+
+  File.exist?(build_gradle_kts_path) ? build_gradle_kts_path.to_s : build_gradle_path.to_s
 end
 
 def get_pubspec_location
@@ -276,6 +279,7 @@ when 'Flutter'
   exit 0
 when 'JavaKotlin', 'ReactNative'
   gradlew_path = get_gradle_path
+  puts "Gradle Path: #{gradlew_path.blue}"
   flavor = get_env('AC_VERSION_FLAVOR')
 
   source_version_code = env_has_key('AC_ANDROID_BUILD_NUMBER') if build_number_source == 'env'
